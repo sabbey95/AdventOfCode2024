@@ -27,40 +27,45 @@ import           Solutions.Day7  (aoc7)
 import           Solutions.Day8  (aoc8)
 import           Solutions.Day9  (aoc9)
 
+import System.TimeIt (timeIt, timeItNamed)
+import Text.Printf (printf)
+
+funs =
+  [ aoc1,
+    aoc2,
+    aoc3,
+    aoc4,
+    aoc5,
+    aoc6,
+    aoc7,
+    aoc8,
+    aoc9,
+    aoc10,
+    aoc11,
+    aoc12,
+    aoc13,
+    aoc14,
+    aoc15,
+    aoc16,
+    aoc17,
+    aoc18,
+    aoc19,
+    aoc20,
+    aoc21,
+    aoc22,
+    aoc23,
+    aoc24,
+    aoc25
+  ]
+
 main :: IO ()
 main = do
-  putStrLn "Which day of Advent do you want to solve? [1-25]"
-  input <- getLine
-  solutionMap IM.! (read input :: Int)
+  timeItNamed "********\nOVERALL TIME" $ runSolutions funs
 
-solutionMap :: IM.IntMap (IO ())
-solutionMap = IM.fromList l
-  where
-    funs =
-      [ aoc1
-      , aoc2
-      , aoc3
-      , aoc4
-      , aoc5
-      , aoc6
-      , aoc7
-      , aoc8
-      , aoc9
-      , aoc10
-      , aoc11
-      , aoc12
-      , aoc13
-      , aoc14
-      , aoc15
-      , aoc16
-      , aoc17
-      , aoc18
-      , aoc19
-      , aoc20
-      , aoc21
-      , aoc22
-      , aoc23
-      , aoc24
-      , aoc25
-      ]
-    l = zip [1 ..] funs
+runSolutions :: [ IO ()] -> IO ()
+runSolutions fns
+  | length fns == 1 = timeIt $ head fns
+  | otherwise = do
+      timeIt $ head fns
+      printf "\n"
+      runSolutions $ tail fns

@@ -48,23 +48,23 @@ getRotations South = [East, West]
 getRotations _ = [North, South]
 
 part2 :: Grid Char -> Int
-part2 grid = S.size $ snd (findBestPaths bestPathValue grid M.empty 0 [startingNode])
+part2 grid = S.size $ snd (findBestPaths bestPathValue grid M.empty 0 (S.singleton startingNode) startingNode)
   where 
     startingNode = (East, fst . head .M.toList $ M.filter (=='S') grid)
     bestPathValue = fromMaybe 0 $ part1 grid
 
-findBestPaths :: Integer -> Grid Char -> M.Map (Direction, Point) Integer -> Integer -> [(Direction, Point)] -> (M.Map (Direction, Point) Integer, S.Set Point)
-findBestPaths limit grid cache cost path = 
-  if isDestination grid (last path) then (cache, S.fromList (map snd path)) else forks
+findBestPaths :: Integer -> Grid Char -> M.Map (Direction, Point) Integer -> Integer -> S.Set(Direction, Point) -> (Direction, Point) -> (M.Map (Direction, Point) Integer, S.Set Point)
+findBestPaths limit grid cache cost path previous = 
+  if isDestination grid previous then (cache, S.map snd path) else forks
     where 
-      neighbours = filter isBestPath . M.toList . M.filter (<=limit) . M.map (+cost) $ getNeighbours grid (last path) 
+      neighbours = filter isBestPath . M.toList . M.filter (<=limit) . M.map (+cost) $ getNeighbours grid previous
       newCacheValues = M.fromList neighbours
       cacheWithNeighbouts = M.union newCacheValues cache
       forks = foldl go (cacheWithNeighbouts, S.empty) neighbours
       go :: (M.Map (Direction, Point) Integer, S.Set Point) -> ((Direction, Point), Integer) -> (M.Map (Direction, Point) Integer, S.Set Point)
       go (newCache, points) (node, c) = (updatedCache, S.union points ps)
         where 
-          (updatedCache, ps) = findBestPaths limit grid newCache c (path ++ [node])
+          (updatedCache, ps) = findBestPaths limit grid newCache c (S.insert node path) node
       isBestPath :: ((Direction, Point), Integer) -> Bool
       isBestPath (node, newCost) = newCost <= M.findWithDefault limit node cache 
 

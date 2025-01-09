@@ -35,7 +35,7 @@ printSolutions' day puzzleInputFun (MkAoCSolution parser part1) = do
       input <- withExceptT MkConfigError $ puzzleInputFun day
       parsed <- except $ resultToEither $ parseString parser mempty input
       lift $ do
-        putStrLn "Solution:"
+        putStrLn $ "Solution Day " ++ show day ++ ":"
         print $ part1 parsed
   either print return result
 

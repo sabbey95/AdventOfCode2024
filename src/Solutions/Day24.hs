@@ -70,9 +70,9 @@ part1 (input, process) =
   where output = finalInput input process
 
 finalInput :: Input -> Process -> Either String Input
-finalInput input process = fst $ foldl go (Right input, []) (M.keys process)
+finalInput input process = fst $ foldl go (Right input, S.empty) (M.keys process)
   where
-    go :: (Either String Input, [String]) -> String -> (Either String Input, [String])
+    go :: (Either String Input, S.Set String) -> String -> (Either String Input, S.Set String)
     go (Right i, previousNodes) node = case value of
       Just _ -> (Right i, newNodes)
       Nothing -> case newResult of
@@ -80,10 +80,10 @@ finalInput input process = fst $ foldl go (Right input, []) (M.keys process)
           Left s -> (Left s, newNodes)
       where
         value = M.lookup node i
-        newNodes = previousNodes ++ [node]
+        newNodes = S.insert node previousNodes
         (x, op, y) = M.findWithDefault ("", AND, "") node process
         newResult = do
-                _  <- if node `elem` previousNodes then Left "Not valid adder" else Right Nothing
+                _  <- if node `S.member` previousNodes then Left "Not valid adder" else Right Nothing
                 iX <- fst $ go (Right i, newNodes) x
                 iY <- fst $ go (Right iX, newNodes) y
                 let xVal = M.findWithDefault 0 x iX
@@ -134,10 +134,7 @@ display = intercalate "," . sort . concatMap (\(a, b) -> [a, b])
 
 getAllValidCombinations :: [String] -> Process -> [(String, String)]
 getAllValidCombinations [x] _ = []
-getAllValidCombinations (x : xs) process = map (x,) (S.toList potentialMatches) ++ getAllValidCombinations xs process
-  where
-    setXs = S.fromList xs
-    potentialMatches = S.difference setXs (S.union (allRelations children (S.singleton x) process) (allRelations parents (S.singleton x) process))
+getAllValidCombinations (x : xs) process = map (x,) xs ++ getAllValidCombinations xs process
 
 matchingRuleBreaker :: S.Set String -> [String] -> Process -> String
 matchingRuleBreaker found potentialMatches allProcesses
@@ -153,12 +150,6 @@ parents p s = maybe [] (\(x, _, y) -> [x, y]) $ M.lookup s p
 
 children :: Process -> String -> [String]
 children p s = M.keys $ M.filter (\(x, _, y) -> x == s || y == s) p
-
-allRelations :: (Process -> String -> [String]) -> S.Set String -> Process -> S.Set String
-allRelations getRelations current allProcesses = if S.size current == S.size updatedRelations then current else allRelations getRelations updatedRelations allProcesses
-  where
-    newRelations = S.fromList (concatMap (getRelations allProcesses) (S.toList current))
-    updatedRelations = S.union current newRelations
 
 swapEm :: Process -> (String, String) -> Process
 swapEm process (x, y) =

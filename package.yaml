@@ -43,6 +43,7 @@ dependencies:
 - parsers
 - regex-tdfa
 - search-algorithms
+- timeit >= 2.0
 
 library:
   source-dirs: src

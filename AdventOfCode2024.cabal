@@ -93,6 +93,7 @@ library
     , split
     , text
     , text-format
+    , timeit >=2.0
     , transformers
     , trifecta
   default-language: Haskell2010
@@ -127,6 +128,7 @@ executable AdventOfCode2024-exe
     , split
     , text
     , text-format
+    , timeit >=2.0
     , transformers
     , trifecta
   default-language: Haskell2010
@@ -162,6 +164,7 @@ test-suite AdventOfCode2024-test
     , split
     , text
     , text-format
+    , timeit >=2.0
     , transformers
     , trifecta
   default-language: Haskell2010

@@ -69,13 +69,8 @@ moveAll::Integer-> (Integer, Integer) ->Int  -> [Robot] -> [Robot]
 moveAll n limits minSafety r
   | n > uncurry (*) limits = r
   | 1110 < n && n < 1125 = 
-    traceLns (show n)
-    traceLns (renderVectorSet (S.fromList (map (\(MkRobot (px, py) _) -> V2 (fromInteger px) (fromInteger py)) newRobots)))
     moveAll (n+1) limits minSafety newRobots
   | otherwise = if newSafety < minSafety then
-    traceLns (show newSafety)
-    traceLns (show n)
-    traceLns (renderVectorSet (S.fromList (map (\(MkRobot (px, py) _) -> V2 (fromInteger px) (fromInteger py)) newRobots)))
     moveAll (n+1) limits newSafety newRobots else moveAll (n+1) limits minSafety newRobots
     where
       newRobots = map (move 1 limits) r

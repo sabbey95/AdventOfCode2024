@@ -1,4 +1,3 @@
-
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 
 {-# HLINT ignore "Use lambda-case" #-}
@@ -9,22 +8,23 @@ where
 
 import Common.AoCSolutions
   ( AoCSolution (MkAoCSolution),
-    printSolutions, printTestSolutions,
+    printSolutions,
+    printTestSolutions,
   )
+import Common.Debugging (traceLns)
 import qualified Data.Map as M
 import Data.Maybe (catMaybes, mapMaybe)
 import qualified Data.Set as S
 import Text.Trifecta (CharParsing (anyChar), Parser, letter, some, token, try)
-import Common.Debugging (traceLns)
 
 aoc6 :: IO ()
 aoc6 = do
   printSolutions 6 $ MkAoCSolution parseInput part1
   printSolutions 6 $ MkAoCSolution parseInput part2
 
-data GridPoint = Wall | Space | Guard Direction deriving (Eq, Show)
+data GridPoint = Wall | Space | Guard Direction deriving (Eq, Show, Ord)
 
-data Direction = N | S | E | W deriving (Enum, Eq, Show)
+data Direction = N | S | E | W deriving (Enum, Eq, Show, Ord)
 
 type Grid = M.Map (Int, Int) GridPoint
 
@@ -48,9 +48,8 @@ parseGridPoint = do
     '<' -> pure $ Guard W
     c -> fail ("Unrecognised char: " ++ [c])
 
-
 part1 :: Grid -> Int
-part1 x = S.size . S.fromList . map fst . fst $ walkThrough guard x []
+part1 x = S.size . S.map fst . fst $ walkThrough guard x S.empty
   where
     guard =
       head . mapMaybe liftTupleMaybe . M.toList $
@@ -62,15 +61,14 @@ part1 x = S.size . S.fromList . map fst . fst $ walkThrough guard x []
           x
     updatedGrid = M.insert (fst guard) Space x
 
-
-walkThrough :: ((Int, Int), Direction) -> Grid -> [((Int, Int), Direction)] -> ([((Int, Int), Direction)], Bool)
-walkThrough (guardP, guardD) grid result = if (guardP, guardD) `elem` result then (result, True) else newPath
+walkThrough :: ((Int, Int), Direction) -> Grid -> S.Set ((Int, Int), Direction) -> (S.Set ((Int, Int), Direction), Bool)
+walkThrough (guardP, guardD) grid result = if (guardP, guardD) `S.member` result then (result, True) else newPath
   where
     endPoint = doStep guardP guardD
     newPath = case M.lookup endPoint grid of
       Just Wall -> walkThrough (guardP, nextDirection guardD) grid result
-      Just Space -> walkThrough (endPoint, guardD) grid $ result ++ [(guardP, guardD)]
-      _ -> (result ++ [(guardP, guardD)], False)
+      Just Space -> walkThrough (endPoint, guardD) grid $ S.insert (guardP, guardD) result
+      _ -> (S.insert (guardP, guardD) result, False)
 
 doStep :: (Int, Int) -> Direction -> (Int, Int)
 doStep (x, y) N = (x, y - 1)
@@ -85,7 +83,7 @@ nextDirection S = W
 nextDirection W = N
 
 part2 :: Grid -> Int
-part2 x = findLoops guard updatedGrid (S.toList . S.fromList . map fst . fst $ walkThrough guard updatedGrid [])
+part2 x = findLoops guard updatedGrid (S.toList . S.delete (fst guard) . S.map fst . fst $ walkThrough guard updatedGrid S.empty)
   where
     guard =
       head . mapMaybe liftTupleMaybe . M.toList $
@@ -97,16 +95,11 @@ part2 x = findLoops guard updatedGrid (S.toList . S.fromList . map fst . fst $ w
           x
     updatedGrid = M.insert (fst guard) Space x
 
-findLoops:: ((Int, Int), Direction) -> Grid -> [(Int, Int)] -> Int
+findLoops :: ((Int, Int), Direction) -> Grid -> [(Int, Int)] -> Int
 findLoops guard grid = foldl go 0
   where
     go :: Int -> (Int, Int) -> Int
-    go n p = if p1 /= fst guard && snd (walkThrough guard (M.insert p Wall grid) []) then n + 1 else n
-      where 
-        p1 = 
-          traceLns (show n)
-            p
-        
+    go n p = if snd (walkThrough guard (M.insert p Wall grid) S.empty) then n + 1 else n
 
 liftTupleMaybe :: (a, Maybe b) -> Maybe (a, b)
 liftTupleMaybe (a, Just b) = pure (a, b)
