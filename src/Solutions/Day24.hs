@@ -15,6 +15,7 @@ import Data.List (intercalate, isPrefixOf, sort, sortOn)
 import qualified Data.Map as M
 import qualified Data.Set as S
 import Text.Trifecta (CharParsing (anyChar, char, string), Parser, Parsing (try), TokenParsing (token), count, integer, letter, newline, some)
+import Data.Bits (Bits(xor))
 
 aoc24 :: IO ()
 aoc24 = do
@@ -62,22 +63,33 @@ type Input = M.Map String Integer
 type Process = M.Map String (String, Operation, String)
 
 part1 :: (Input, Process) -> Integer
-part1 (input, process) = score 'z' (finalInput input process)
+part1 (input, process) =
+    case output of
+      Right i -> score 'z' i
+      _ -> 0
+  where output = finalInput input process
 
-finalInput :: Input -> Process -> Input
-finalInput input process = foldl go input (M.keys process)
+finalInput :: Input -> Process -> Either String Input
+finalInput input process = fst $ foldl go (Right input, []) (M.keys process)
   where
-    go :: Input -> String -> Input
-    go i node = case value of
-      Just _ -> i
-      Nothing -> M.insert node (result xVal op yVal) iY
+    go :: (Either String Input, [String]) -> String -> (Either String Input, [String])
+    go (Right i, previousNodes) node = case value of
+      Just _ -> (Right i, newNodes)
+      Nothing -> case newResult of
+          Right i -> (Right i, newNodes) 
+          Left s -> (Left s, newNodes)
       where
         value = M.lookup node i
+        newNodes = previousNodes ++ [node]
         (x, op, y) = M.findWithDefault ("", AND, "") node process
-        iX = go i x
-        iY = go iX y
-        xVal = M.findWithDefault 0 x iX
-        yVal = M.findWithDefault 0 y iY
+        newResult = do
+                _  <- if node `elem` previousNodes then Left "Not valid adder" else Right Nothing
+                iX <- fst $ go (Right i, newNodes) x
+                iY <- fst $ go (Right iX, newNodes) y
+                let xVal = M.findWithDefault 0 x iX
+                let yVal = M.findWithDefault 0 y iY
+                pure $ M.insert node (result xVal op yVal) iY
+    go s _ = s
 
 result :: Integer -> Operation -> Integer -> Integer
 result 1 AND 1 = 1
@@ -95,84 +107,58 @@ getBinFromInput :: Char -> Input -> [(String, Integer)]
 getBinFromInput c = sortOn fst . M.toList . M.filterWithKey (\k _ -> [c] `isPrefixOf` k)
 
 part2 :: (Input, Process) -> String
-part2 (input, process) = foldl go [] maybes
+part2 (input, process) = display $ pairsToSwapFromRuleBreaks ++ [findLast allValidCombinations interestingCombinations]
   where
-    -- rule1 = M.keys $ M.filterWithKey (\k (x, op, y) -> "z" `isPrefixOf` k && k /= "z45" && op /= XOR) process
-    -- rule2 = M.keys $ M.filterWithKey (\k (x, op, y) -> not ("z" `isPrefixOf` k) && not (("x" `isPrefixOf` x && "y" `isPrefixOf` y) || ("x" `isPrefixOf` y && "y" `isPrefixOf` x)) && op == XOR) process
-    defos = [("z08", "vvr"), ("z28", "tfb"), ("z39", "mqh")]
-    go :: String -> (String, String) -> String
-    go s a = if value /= expectedZ then s ++ " : " ++ show a else 
-      traceLns (intercalate "," . sort $ concatMap (\(a, b)-> [a,b]) (defos ++ [a]))
-      s
-        where
-          swappedProcesses = foldl swapEm process (defos ++ [a])
-          value = part1 (input, swappedProcesses)
+    freshInput = M.map (const 0) input
+    rule1Breakers = M.keys $ M.filterWithKey (\k (x, op, y) -> "z" `isPrefixOf` k && k /= "z45" && op /= XOR) process
+    rule2Breakers = M.keys $ M.filterWithKey (\k (x, op, y) -> not ("z" `isPrefixOf` k) && not (("x" `isPrefixOf` x && "y" `isPrefixOf` y) || ("x" `isPrefixOf` y && "y" `isPrefixOf` x)) && op == XOR) process
+    pairsToSwapFromRuleBreaks = map (\r -> (r, matchingRuleBreaker (S.singleton r) rule2Breakers process)) rule1Breakers
+    swappedProcessesFromRuleBreaks = foldl swapEm process pairsToSwapFromRuleBreaks
+    interestingCombinations = [(score 'x' input, score 'y' input),(2 ^ 44, 2 ^ 44),(0, 0), (0, 2 ^ 44), (2 ^ 44, 0)]
+    allNodes = filter (`notElem` (rule1Breakers ++ rule2Breakers)) (M.keys process)
+    allValidCombinations = getAllValidCombinations allNodes process
+    combinations = findLast allValidCombinations interestingCombinations
+    findLast :: [(String, String)] -> [(Integer, Integer)] -> (String, String)
+    findLast [x] _ = x
+    findLast potentials [(x, y)] = findLast (filterCombinations potentials (x, y)) [(x - 1, y + 1)]
+    findLast potentials (v:others) = findLast (filterCombinations potentials v) others
+    filterCombinations::[(String, String)]  -> (Integer, Integer) -> [(String, String)]
+    filterCombinations potentials (xVal, yVal) = filter (\p -> part1 (withYVal, swapEm swappedProcessesFromRuleBreaks p) == xVal + yVal) potentials
+          where
+            withXVal = replaceInInput 'x' xVal freshInput
+            withYVal = replaceInInput 'y' yVal withXVal
 
 
-    -- swappedProcesses = foldl swapEm process defos
-    xVal = score 'x' input
-    yVal = score 'y' input
-    expectedZ =
-      xVal
-        + yVal
-    -- allInputs = finalInput input process
-    -- allNodes = filter (`notElem` (rule1 ++ rule2)) (M.keys process)
-    -- go :: String -> S.Set String
-    -- go s = case M.lookup s process of
-    --   Nothing -> S.singleton s
-    --   Just (x, _, y) -> S.unions [S.fromList [s, x, y], go x, go y]
---     run :: [String] -> String
---     run [x] = ""
---     run (x : xs) = run2 x xs ++ run xs
---     run2 :: String -> [String] -> String
---     run2 x [] = ""
---     run2 x (y : ys)
---       | isDodgy go (x, y) swappedProcesses = run2 x ys
---       | value == expectedZ = (str ++ " : ") ++ run2 x ys
---       | otherwise = run2 x ys
---       where
---         swapped =
---           -- traceLns (show (x ++ "," ++ y)) 
---           swapEm swappedProcesses (x, y)
---         value = part1 (input, swapped)
---         str = traceLns (show (value - expectedZ, "Answer: " ++ x ++ "," ++ y)) y ++ "," ++ x
+display :: [(String, String)] -> String
+display = intercalate "," . sort . concatMap (\(a, b) -> [a, b])
 
--- isDodgy :: (String -> S.Set String) -> (String, String) -> Process -> Bool
--- isDodgy getEm (x, y) process = S.member (x, y) dodgyOnes || S.member x dodge||S.member y dodge|| S.member x (getEm y) || S.member y (getEm x)
---   where
---     dodgyOnes =
---       S.fromList
---         [ ("bhv", "ctv"),
---           ("bhv", "kwv"),
---           ("bkk", "ctv"),
---           ("bkk", "kwv"),
---           ("bkk", "ctv"),
---           ("bpq", "ctv"),
---           ("brn", "ctv"),
---           ("brn", "kwv"),
---           ("ckr", "ctv"),
---           ("ckr", "kwv"),
---           ("ctv","cvn"),
---           ("cvn","kwv"),
---           ("djn","kwv"),
---           ("fcn","kwv"),
---           ("fcq","kwv"),
---           ("bpq","kwv"),
---           ("fdd","kwv"),
---           ("fpn","kwv"),
---           ("fpw","kwv"),
---           ("fpw","kwv"),
---           ("fvq","kwv"),
---           ("fdd","kwv")
---         ]
---     dodge =
---         S.fromList
---           [ "ctv",
---             "kwv"
---           ]
+getAllValidCombinations :: [String] -> Process -> [(String, String)]
+getAllValidCombinations [x] _ = []
+getAllValidCombinations (x : xs) process = map (x,) (S.toList potentialMatches) ++ getAllValidCombinations xs process
+  where
+    setXs = S.fromList xs
+    potentialMatches = S.difference setXs (S.union (allRelations children (S.singleton x) process) (allRelations parents (S.singleton x) process))
 
--- (xX, _, yX) = M.findWithDefault (x, OR, y) x process
--- (xY, _, yy) = M.findWithDefault (x, OR, y) y process
+matchingRuleBreaker :: S.Set String -> [String] -> Process -> String
+matchingRuleBreaker found potentialMatches allProcesses
+  | S.size foundPotentialMatches > 0 = S.elemAt 0 foundPotentialMatches
+  | otherwise = matchingRuleBreaker nextTier potentialMatches allProcesses
+  where
+    foundList = S.toList found
+    nextTier = S.unions [found, S.fromList (concatMap (parents allProcesses) foundList), S.fromList (concatMap (children allProcesses) foundList)]
+    foundPotentialMatches = S.intersection nextTier (S.fromList potentialMatches)
+
+parents :: Process -> String -> [String]
+parents p s = maybe [] (\(x, _, y) -> [x, y]) $ M.lookup s p
+
+children :: Process -> String -> [String]
+children p s = M.keys $ M.filter (\(x, _, y) -> x == s || y == s) p
+
+allRelations :: (Process -> String -> [String]) -> S.Set String -> Process -> S.Set String
+allRelations getRelations current allProcesses = if S.size current == S.size updatedRelations then current else allRelations getRelations updatedRelations allProcesses
+  where
+    newRelations = S.fromList (concatMap (getRelations allProcesses) (S.toList current))
+    updatedRelations = S.union current newRelations
 
 swapEm :: Process -> (String, String) -> Process
 swapEm process (x, y) =
@@ -188,8 +174,14 @@ toBinary n = toBinary (div n 2) ++ [mod n 2]
 fromBinary :: [Integer] -> Integer
 fromBinary = sum . zipWith (*) (iterate (* 2) 1)
 
+replaceInInput :: Char -> Integer -> Input -> Input
+replaceInInput charPrefix n input = fst $ foldr go (input, 0) binaryN
+  where
+    binaryN = toBinary n
+    go :: Integer -> (Input, Int) -> (Input, Int)
+    go digit (currentInput, index) = (M.insert (charPrefix : stringify index) digit currentInput, index + 1)
 
-maybes:: [(String, String)]
-maybes = [("gms","bkr"),
-  ("pvv","bkr"),
-  ("rnq","bkr")]
+stringify :: Int -> String
+stringify i = if length str < 2 then '0' : str else str
+  where
+    str = show i

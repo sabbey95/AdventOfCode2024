@@ -41,7 +41,6 @@ allThrees connections = S.toList . S.unions $ map getThrees connections
   getThrees (a, b) = S.map (\s -> sort [a,b,s]) $ S.intersection (getConnections a) (getConnections b)
 
 
-
 part2 :: [(String, String)] -> String
 part2 = intercalate "," . sort . S.toList . longestConnections
 
